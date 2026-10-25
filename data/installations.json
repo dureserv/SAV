@@ -1,0 +1,30 @@
+{
+  "id": 1,
+  "clientName": "Northside Apartments",
+  "contactName": "Maya Lewis",
+  "email": "maya@northside.example",
+  "phone": "+1 (415) 555-1024",
+  "address": "22 River Walk, San Jose, CA",
+  "maintenanceDate": "2026-11-14",
+  "type": "Fire",
+  "lastModified": "2026-10-10",
+  "lastModifiedBy": "A. Morgan",
+  "notes": "Elevator lobby sprinkler inspection scheduled after renovation.",
+  "installerCode": "482611",
+  "masterCode": "1998",
+  "unitType": "Notifier NFS-320",
+  "detectors": 28,
+  "battery": "Lithium 24V backup",
+  "sirens": 4,
+  "keyboards": 2,
+  "panels": 3,
+  "communication": "IP Network",
+  "controlRoom": "Central Dispatch NF",
+  "documents": [
+    "northside_plan.pdf"
+  ],
+  "audit": [
+    "10 Oct 2026 — Fire panel battery set replaced by A. Morgan",
+    "05 Sep 2026 — Door sensor calibration confirmed"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "sav-secure-alarm-vault",
+  "version": "1.0.0",
+  "description": "Secure Alarm Vault dashboard and API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "security",
+    "alarm",
+    "vault",
+    "dashboard"
+  ],
+  "author": "dureserv",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SAV | Secure Alarm Vault</title>
+    <meta name="description" content="Secure Alarm Vault dashboard for fire and intrusion system management." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -23,12 +24,12 @@
         <form id="loginForm" class="login-form">
           <label>
             Colleague email
-            <input type="email" id="emailInput" value="admin@sav.local" />
+            <input type="email" id="emailInput" value="admin@sav.local" autocomplete="username" />
           </label>
 
           <label>
             Password
-            <input type="password" id="passwordInput" value="securevault" />
+            <input type="password" id="passwordInput" value="securevault" autocomplete="current-password" />
           </label>
 
           <button type="submit" class="primary-button">Access Dashboard</button>
@@ -102,7 +103,7 @@
           <select id="typeFilter">
             <option value="all">All types</option>
             <option value="Fire">Fire</option>
-            <option value="Efraction">Efraction</option>
+            <option value="Intrusion">Intrusion</option>
           </select>
 
           <input id="dateFilter" type="date" />

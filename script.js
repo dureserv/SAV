@@ -1,4 +1,4 @@
-const installations = [
+const seedInstallations = [
   {
     id: 1,
     clientName: 'Northside Apartments',
@@ -32,7 +32,7 @@ const installations = [
     phone: '+1 (415) 555-7322',
     address: '98 Market Street, Oakland, CA',
     maintenanceDate: '2026-10-29',
-    type: 'Efraction',
+    type: 'Intrusion',
     lastModified: '2026-10-11',
     lastModifiedBy: 'S. Patel',
     notes: 'Front desk keypad to be reprogrammed following tenant turnover.',
@@ -82,7 +82,7 @@ const installations = [
     phone: '+1 (408) 555-9967',
     address: '120 El Dorado Ave, Sunnyvale, CA',
     maintenanceDate: '2026-10-27',
-    type: 'Efraction',
+    type: 'Intrusion',
     lastModified: '2026-10-12',
     lastModifiedBy: 'M. Ortiz',
     notes: 'Administration building access points flagged for new badge integration.',
@@ -101,6 +101,16 @@ const installations = [
   }
 ];
 
+const state = {
+  installations: [],
+  selectedId: null,
+  filters: {
+    search: '',
+    type: 'all',
+    date: ''
+  }
+};
+
 const tableBody = document.getElementById('installationTableBody');
 const totalSitesStat = document.getElementById('totalSitesStat');
 const fireSitesStat = document.getElementById('fireSitesStat');
@@ -111,10 +121,7 @@ const alertBanner = document.getElementById('alertBanner');
 const searchInput = document.getElementById('searchInput');
 const typeFilter = document.getElementById('typeFilter');
 const dateFilter = document.getElementById('dateFilter');
-const installationForm = document.getElementById('installationForm');
 const fileList = document.getElementById('fileList');
-
-let selectedInstallationId = installations[0].id;
 
 function formatDate(value) {
   if (!value) return '—';
@@ -130,29 +137,49 @@ function isDueSoon(dateString) {
   return diffDays >= 0 && diffDays <= 30;
 }
 
-function getFilteredInstallations() {
-  const search = searchInput.value.trim().toLowerCase();
-  const typeValue = typeFilter.value;
-  const dateValue = dateFilter.value;
+async function loadInstallations() {
+  try {
+    const response = await fetch('/api/installations');
+    if (!response.ok) throw new Error('Failed to load installations');
+    const data = await response.json();
+    state.installations = Array.isArray(data) && data.length ? data : seedInstallations;
+    localStorage.setItem('sav-installations', JSON.stringify(state.installations));
+  } catch (error) {
+    const fallback = JSON.parse(localStorage.getItem('sav-installations') || 'null');
+    state.installations = Array.isArray(fallback) && fallback.length ? fallback : seedInstallations;
+  }
 
-  return installations.filter((item) => {
+  state.selectedId = state.installations[0]?.id ?? null;
+  renderSummary();
+  renderTable();
+  populateForm();
+  showAlert('All installations are synchronized and ready for review.');
+}
+
+function saveLocalInstallations() {
+  localStorage.setItem('sav-installations', JSON.stringify(state.installations));
+}
+
+function getFilteredInstallations() {
+  return state.installations.filter((item) => {
+    const search = state.filters.search.trim().toLowerCase();
     const matchesSearch =
       !search ||
       item.clientName.toLowerCase().includes(search) ||
       item.address.toLowerCase().includes(search);
 
-    const matchesType = typeValue === 'all' || item.type === typeValue;
-    const matchesDate = !dateValue || item.maintenanceDate === dateValue;
+    const matchesType = state.filters.type === 'all' || item.type === state.filters.type;
+    const matchesDate = !state.filters.date || item.maintenanceDate === state.filters.date;
 
     return matchesSearch && matchesType && matchesDate;
   });
 }
 
 function renderSummary() {
-  const total = installations.length;
-  const fireCount = installations.filter((item) => item.type === 'Fire').length;
-  const intrusionCount = installations.filter((item) => item.type === 'Efraction').length;
-  const dueSoonCount = installations.filter((item) => isDueSoon(item.maintenanceDate)).length;
+  const total = state.installations.length;
+  const fireCount = state.installations.filter((item) => item.type === 'Fire').length;
+  const intrusionCount = state.installations.filter((item) => item.type === 'Intrusion').length;
+  const dueSoonCount = state.installations.filter((item) => isDueSoon(item.maintenanceDate)).length;
 
   totalSitesStat.textContent = total;
   fireSitesStat.textContent = fireCount;
@@ -165,14 +192,12 @@ function renderTable() {
 
   tableBody.innerHTML = filtered
     .map((item) => {
-      const selectedClass = item.id === selectedInstallationId ? 'selected-row' : '';
+      const tbodyRow = item.id === state.selectedId ? 'selected-row' : '';
       return `
-        <tr class="table-clickable ${selectedClass}" data-installation-id="${item.id}">
-          <td>
-            <strong>${item.clientName}</strong>
-          </td>
+        <tr class="table-clickable ${tbodyRow}" data-installation-id="${item.id}">
+          <td><strong>${item.clientName}</strong></td>
           <td>${item.address}</td>
-          <td><span class="badge ${item.type === 'Fire' ? 'fire' : 'efraction'}">${item.type}</span></td>
+          <td><span class="badge ${item.type === 'Fire' ? 'fire' : 'intrusion'}">${item.type}</span></td>
           <td>${formatDate(item.maintenanceDate)} ${isDueSoon(item.maintenanceDate) ? '<span class="badge alert">Due soon</span>' : ''}</td>
           <td>${formatDate(item.lastModified)}</td>
         </tr>
@@ -184,7 +209,7 @@ function renderTable() {
 
   tableBody.querySelectorAll('tr[data-installation-id]').forEach((row) => {
     row.addEventListener('click', () => {
-      selectedInstallationId = Number(row.dataset.installationId);
+      state.selectedId = Number(row.dataset.installationId);
       renderTable();
       populateForm();
     });
@@ -192,7 +217,7 @@ function renderTable() {
 }
 
 function populateForm() {
-  const item = installations.find((installation) => installation.id === selectedInstallationId);
+  const item = state.installations.find((installation) => installation.id === state.selectedId);
   if (!item) return;
 
   const fields = [
@@ -225,13 +250,11 @@ function populateForm() {
 
   document.getElementById('systemTypeTitle').textContent = `${item.type} System Details`;
 
-  const fileNames = item.documents.length ? item.documents : ['No files uploaded'];
-  fileList.innerHTML = fileNames
-    .map((file) => `<span class="file-chip">${file}</span>`)
-    .join('');
+  const fileNames = item.documents?.length ? item.documents : ['No files uploaded'];
+  fileList.innerHTML = fileNames.map((file) => `<span class="file-chip">${file}</span>`).join('');
 
   const auditList = document.getElementById('auditList');
-  auditList.innerHTML = item.audit.map((entry) => `<li>${entry}</li>`).join('');
+  auditList.innerHTML = (item.audit || []).map((entry) => `<li>${entry}</li>`).join('');
 }
 
 function showAlert(message) {
@@ -239,18 +262,18 @@ function showAlert(message) {
   alertBanner.classList.remove('hidden');
 }
 
-function addInstallation() {
-  const nextId = installations.length + 1;
+async function addInstallation() {
+  const nextId = Date.now();
   const newInstallation = {
     id: nextId,
-    clientName: `New Site ${nextId}`,
+    clientName: `New Site ${new Date().getSeconds()}`,
     contactName: 'Pending assignment',
     email: 'contact@pending.example',
     phone: '+1 (555) 010-0000',
     address: 'Add site address',
     maintenanceDate: '2026-11-30',
     type: 'Fire',
-    lastModified: '2026-10-25',
+    lastModified: new Date().toISOString().slice(0, 10),
     lastModifiedBy: 'A. Morgan',
     notes: 'New installation added and awaiting full details.',
     installerCode: '000000',
@@ -264,22 +287,41 @@ function addInstallation() {
     communication: 'Pending',
     controlRoom: 'Pending',
     documents: [],
-    audit: ['25 Oct 2026 — New installation record created by A. Morgan']
+    audit: [`${new Date().toISOString().slice(0, 10)} — New installation record created by A. Morgan`]
   };
 
-  installations.unshift(newInstallation);
-  selectedInstallationId = newInstallation.id;
+  try {
+    const response = await fetch('/api/installations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newInstallation)
+    });
+
+    if (response.ok) {
+      const saved = await response.json();
+      state.installations.unshift(saved);
+      state.selectedId = saved.id;
+    } else {
+      state.installations.unshift(newInstallation);
+      state.selectedId = newInstallation.id;
+    }
+  } catch (error) {
+    state.installations.unshift(newInstallation);
+    state.selectedId = newInstallation.id;
+  }
+
+  saveLocalInstallations();
   renderSummary();
   renderTable();
   populateForm();
   showAlert('New installation created and ready for configuration.');
 }
 
-function saveChanges() {
-  const item = installations.find((installation) => installation.id === selectedInstallationId);
+async function saveChanges() {
+  const item = state.installations.find((installation) => installation.id === state.selectedId);
   if (!item) return;
 
-  const changedValues = {
+  const payload = {
     clientName: document.getElementById('clientNameInput').value,
     contactName: document.getElementById('contactNameInput').value,
     email: document.getElementById('emailFieldInput').value,
@@ -298,10 +340,33 @@ function saveChanges() {
     panels: Number(document.getElementById('panelsInput').value || 0),
     communication: document.getElementById('communicationInput').value,
     controlRoom: document.getElementById('controlRoomInput').value,
-    lastModified: new Date().toISOString().slice(0, 10)
+    lastModified: new Date().toISOString().slice(0, 10),
+    type: item.type
   };
 
-  Object.assign(item, changedValues);
+  const updatedItem = { ...item, ...payload };
+
+  try {
+    const response = await fetch(`/api/installations/${item.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      const saved = await response.json();
+      const index = state.installations.findIndex((installation) => installation.id === item.id);
+      if (index >= 0) state.installations[index] = saved;
+    } else {
+      const index = state.installations.findIndex((installation) => installation.id === item.id);
+      if (index >= 0) state.installations[index] = updatedItem;
+    }
+  } catch (error) {
+    const index = state.installations.findIndex((installation) => installation.id === item.id);
+    if (index >= 0) state.installations[index] = updatedItem;
+  }
+
+  saveLocalInstallations();
   renderSummary();
   renderTable();
   populateForm();
@@ -319,16 +384,18 @@ function toggleMask(event) {
 
 function handleDocumentUpload(event) {
   const files = Array.from(event.target.files || []);
-  const currentItem = installations.find((installation) => installation.id === selectedInstallationId);
+  const currentItem = state.installations.find((installation) => installation.id === state.selectedId);
   if (!currentItem) return;
 
   currentItem.documents = files.length ? files.map((file) => file.name) : currentItem.documents;
+  saveLocalInstallations();
   populateForm();
   showAlert(`${files.length} file${files.length === 1 ? '' : 's'} uploaded to document vault.`);
 }
 
 function showUpcomingAlerts() {
-  const upcoming = installations.filter((item) => isDueSoon(item.maintenanceDate));
+  const upcoming = state.installations.filter((item) => isDueSoon(item.maintenanceDate));
+
   if (!upcoming.length) {
     showAlert('No maintenance alerts due in the next 30 days.');
     return;
@@ -354,9 +421,21 @@ function handleLogin(event) {
   document.getElementById('app').classList.remove('hidden');
 }
 
-searchInput.addEventListener('input', renderTable);
-typeFilter.addEventListener('change', renderTable);
-dateFilter.addEventListener('change', renderTable);
+searchInput.addEventListener('input', (event) => {
+  state.filters.search = event.target.value;
+  renderTable();
+});
+
+typeFilter.addEventListener('change', (event) => {
+  state.filters.type = event.target.value;
+  renderTable();
+});
+
+dateFilter.addEventListener('change', (event) => {
+  state.filters.date = event.target.value;
+  renderTable();
+});
+
 document.getElementById('addInstallationButton').addEventListener('click', addInstallation);
 document.getElementById('saveChangesButton').addEventListener('click', saveChanges);
 document.getElementById('alertButton').addEventListener('click', showUpcomingAlerts);
@@ -366,7 +445,4 @@ document.querySelectorAll('.toggle-mask').forEach((button) => {
   button.addEventListener('click', toggleMask);
 });
 
-renderSummary();
-renderTable();
-populateForm();
-showAlert('All installations are synchronized and ready for review.');
+loadInstallations();
