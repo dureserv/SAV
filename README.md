@@ -3,7 +3,7 @@ Secure Alarm Vault
 1. Secure Access & Dashboard
 Colleague Login: A secure login screen. Only authorized team members can access the database.
 Central Dashboard: A clean, searchable table of all installations. You can filter by Client Name, Address, Installation Type (Fire / Efraction), or upcoming Maintenance Dates.
-Quick Actions: "Add New Installation" (choose Fire or Efraction) and "Upcoming Maintenance Alerts".
+Quick Actions: "Add New Installation" (choose Fire or Intrusion) and "Upcoming Maintenance Alerts".
 
 2. Detailed Installation Forms (With Editing/Modifications)
 Each installation will have its own dedicated page with structured, editable forms:
@@ -14,7 +14,7 @@ Site Address (with quick link to Google Maps)
 Maintenance Schedule & History Logs
 General Notes & Comments
 
-Efraction (Intrusion) Form:
+Intrusion Form:
 Security Vault Section (Encrypted/Masked): Installer Code, Master Code
 Central Unit Type
 Number of Detectors & Keyboards
