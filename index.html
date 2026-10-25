@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SAV | Secure Alarm Vault</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="loginPage" class="auth-shell">
+      <div class="auth-card">
+        <div class="brand-block">
+          <div class="brand-mark">S</div>
+          <div>
+            <p class="eyebrow">Secure Alarm Vault</p>
+            <h1>SAV</h1>
+          </div>
+        </div>
+
+        <form id="loginForm" class="login-form">
+          <label>
+            Colleague email
+            <input type="email" id="emailInput" value="admin@sav.local" />
+          </label>
+
+          <label>
+            Password
+            <input type="password" id="passwordInput" value="securevault" />
+          </label>
+
+          <button type="submit" class="primary-button">Access Dashboard</button>
+        </form>
+
+        <p class="security-note">Authorized team access only</p>
+      </div>
+    </div>
+
+    <div id="app" class="app hidden">
+      <aside class="sidebar">
+        <div class="brand-block sidebar-brand">
+          <div class="brand-mark">S</div>
+          <div>
+            <p class="eyebrow">Secure Alarm Vault</p>
+            <h2>SAV</h2>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Main navigation">
+          <button class="nav-item active" type="button">Dashboard</button>
+          <button class="nav-item" type="button">Installations</button>
+          <button class="nav-item" type="button">Alerts</button>
+          <button class="nav-item" type="button">Documents</button>
+        </nav>
+
+        <div class="user-card">
+          <span class="user-dot"></span>
+          <div>
+            <strong>Alex Morgan</strong>
+            <small>Operations Lead</small>
+          </div>
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow muted">Overview</p>
+            <h3>Installation Dashboard</h3>
+          </div>
+
+          <div class="topbar-actions">
+            <button id="alertButton" class="secondary-button" type="button">Upcoming Maintenance Alerts</button>
+            <button id="addInstallationButton" class="primary-button" type="button">Add New Installation</button>
+          </div>
+        </header>
+
+        <section class="stats-grid" aria-label="Site Summary">
+          <article class="stat-card">
+            <span class="stat-label">Total Sites</span>
+            <strong id="totalSitesStat">0</strong>
+          </article>
+          <article class="stat-card accent">
+            <span class="stat-label">Fire Systems</span>
+            <strong id="fireSitesStat">0</strong>
+          </article>
+          <article class="stat-card accent-2">
+            <span class="stat-label">Intrusion Systems</span>
+            <strong id="intrusionSitesStat">0</strong>
+          </article>
+          <article class="stat-card warning">
+            <span class="stat-label">Due Soon</span>
+            <strong id="dueSoonStat">0</strong>
+          </article>
+        </section>
+
+        <section class="filters" aria-label="Filters">
+          <input id="searchInput" type="search" placeholder="Search client or address" />
+
+          <select id="typeFilter">
+            <option value="all">All types</option>
+            <option value="Fire">Fire</option>
+            <option value="Efraction">Efraction</option>
+          </select>
+
+          <input id="dateFilter" type="date" />
+        </section>
+
+        <div id="alertBanner" class="alert-banner hidden" aria-live="polite"></div>
+
+        <section class="table-panel">
+          <div class="panel-header">
+            <h4>All Installations</h4>
+            <span id="resultsMeta">0 records</span>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Address</th>
+                  <th>Type</th>
+                  <th>Maintenance</th>
+                  <th>Last Updated</th>
+                </tr>
+              </thead>
+              <tbody id="installationTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="detailPanel" class="detail-panel">
+          <div class="panel-header detail-header">
+            <h4>Installation Details</h4>
+            <button id="saveChangesButton" class="primary-button" type="button">Save Changes</button>
+          </div>
+
+          <form id="installationForm" class="installation-form">
+            <div class="form-section">
+              <h5>Common Information</h5>
+
+              <div class="field-grid">
+                <label>
+                  Client Name
+                  <input id="clientNameInput" type="text" />
+                </label>
+
+                <label>
+                  Client Contact
+                  <input id="contactNameInput" type="text" />
+                </label>
+
+                <label>
+                  Email
+                  <input id="emailFieldInput" type="email" />
+                </label>
+
+                <label>
+                  Phone
+                  <input id="phoneInput" type="tel" />
+                </label>
+
+                <label class="full-width">
+                  Site Address
+                  <input id="addressInput" type="text" />
+                </label>
+
+                <label>
+                  Maintenance Schedule
+                  <input id="maintenanceDateInput" type="date" />
+                </label>
+
+                <label>
+                  Last Modified By
+                  <input id="lastModifiedInput" type="text" />
+                </label>
+
+                <label class="full-width">
+                  General Notes
+                  <textarea id="notesInput" rows="3"></textarea>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-section form-section-two-col">
+              <div>
+                <h5>Security Vault</h5>
+                <div class="field-grid compact">
+                  <label>
+                    Installer Code
+                    <div class="masked-field">
+                      <input id="installerCodeInput" type="password" />
+                      <button type="button" class="toggle-mask" data-target="installerCodeInput">Reveal</button>
+                    </div>
+                  </label>
+
+                  <label>
+                    Master Code
+                    <div class="masked-field">
+                      <input id="masterCodeInput" type="password" />
+                      <button type="button" class="toggle-mask" data-target="masterCodeInput">Reveal</button>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <h5>Audit Trail</h5>
+                <ul id="auditList" class="audit-list"></ul>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h5 id="systemTypeTitle">System Details</h5>
+
+              <div class="field-grid">
+                <label>
+                  Central Unit Type
+                  <input id="unitTypeInput" type="text" />
+                </label>
+
+                <label>
+                  Battery Backup Type
+                  <input id="batteryInput" type="text" />
+                </label>
+
+                <label>
+                  Number of Detectors
+                  <input id="detectorsInput" type="number" min="0" />
+                </label>
+
+                <label>
+                  Number of Sirens
+                  <input id="sirensInput" type="number" min="0" />
+                </label>
+
+                <label>
+                  Number of Keyboards
+                  <input id="keyboardsInput" type="number" min="0" />
+                </label>
+
+                <label>
+                  Number of Control Panels
+                  <input id="panelsInput" type="number" min="0" />
+                </label>
+
+                <label>
+                  Communication Type
+                  <input id="communicationInput" type="text" />
+                </label>
+
+                <label>
+                  Control Room Name
+                  <input id="controlRoomInput" type="text" />
+                </label>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h5>Document Vault</h5>
+
+              <div class="upload-box">
+                <label for="documentUpload" class="upload-label">Upload building plans or material specs</label>
+                <input id="documentUpload" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.svg,.doc,.docx" />
+                <div id="fileList" class="file-list" aria-live="polite"></div>
+              </div>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
