@@ -74,7 +74,8 @@
 
           <div class="topbar-actions">
             <button id="alertButton" class="secondary-button" type="button">Upcoming Maintenance Alerts</button>
-            <button id="addInstallationButton" class="primary-button" type="button">Add New Installation</button>
+            <button id="addFireButton" class="primary-button" type="button">Add Fire Installation</button>
+            <button id="addIntrusionButton" class="secondary-button" type="button">Add Intrusion Installation</button>
           </div>
         </header>
 
@@ -136,7 +137,13 @@
         <section id="detailPanel" class="detail-panel">
           <div class="panel-header detail-header">
             <h4>Installation Details</h4>
-            <button id="saveChangesButton" class="primary-button" type="button">Save Changes</button>
+            <div class="detail-actions">
+              <select id="typeSelector" class="inline-select" aria-label="Installation type">
+                <option value="Fire">Fire</option>
+                <option value="Intrusion">Intrusion</option>
+              </select>
+              <button id="saveChangesButton" class="primary-button" type="button">Save Changes</button>
+            </div>
           </div>
 
           <form id="installationForm" class="installation-form">
