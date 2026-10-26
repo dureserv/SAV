@@ -36,3 +36,5 @@ File Preview: View uploaded plans directly in the browser without having to down
 4. Security & Protection (Crucial!)
 Code Masking: Sensitive fields like Installer/Master codes will be masked by default (e.g., ••••••). A user must click a "Reveal" icon to view them, preventing accidental shoulder-surfing.
 Audit Trail: A simple log showing which colleague last modified the installation details.
+
+5.
