@@ -37,8 +37,12 @@
           <button type="submit" class="primary-button">Access Dashboard</button>
         </form>
 
+        <div class="reset-link-box">
+          <button id="forgotPasswordButton" type="button" class="text-button">Forgot password?</button>
+        </div>
+
         <p class="security-note">Authorized team access only</p>
-        <p class="demo-credentials">Demo accounts: admin@sav.local / securevault, installer@sav.local / installer123, auditor@sav.local / auditor123</p>
+        <p class="demo-credentials">Demo accounts: admin@sav.local / securevault, installer@sav.local / installer123, auditor@sav.local / auditor123, manager@sav.local / manager123, staff@sav.local / staff123</p>
       </div>
     </div>
 
@@ -53,11 +57,21 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="Main navigation">
-          <button class="nav-item active" type="button">Dashboard</button>
-          <button class="nav-item" type="button">Installations</button>
-          <button class="nav-item" type="button">Alerts</button>
-          <button class="nav-item" type="button">Documents</button>
+          <button class="nav-item active" type="button" data-view="dashboard">Dashboard</button>
+          <button class="nav-item" type="button" data-view="installations">Installations</button>
+          <button class="nav-item" type="button" data-view="alerts">Alerts</button>
+          <button class="nav-item" type="button" data-view="documents">Documents</button>
+          <button class="nav-item audit-only hidden" type="button" data-view="audit">Audit</button>
+          <button class="nav-item" type="button" data-view="profile">Profile</button>
         </nav>
+
+        <div class="status-card">
+          <div class="status-header">
+            <span class="user-dot"></span>
+            <strong>Session</strong>
+          </div>
+          <div id="sessionStatus" class="status-meta">Checking auth…</div>
+        </div>
 
         <div class="user-card">
           <span class="user-dot"></span>
@@ -102,40 +116,115 @@
           </article>
         </section>
 
-        <section class="filters" aria-label="Filters">
-          <input id="searchInput" type="search" placeholder="Search client or address" />
+        <section class="workspace-grid">
+          <div class="main-column">
+            <section class="filters" aria-label="Filters">
+              <input id="searchInput" type="search" placeholder="Search client or address" />
 
-          <select id="typeFilter">
-            <option value="all">All types</option>
-            <option value="Fire">Fire</option>
-            <option value="Intrusion">Intrusion</option>
-          </select>
+              <select id="typeFilter">
+                <option value="all">All types</option>
+                <option value="Fire">Fire</option>
+                <option value="Intrusion">Intrusion</option>
+              </select>
 
-          <input id="dateFilter" type="date" />
-        </section>
+              <input id="dateFilter" type="date" />
+            </section>
 
-        <div id="alertBanner" class="alert-banner hidden" aria-live="polite"></div>
+            <div id="alertBanner" class="alert-banner hidden" aria-live="polite"></div>
 
-        <section class="table-panel">
-          <div class="panel-header">
-            <h4>All Installations</h4>
-            <span id="resultsMeta">0 records</span>
+            <section class="table-panel">
+              <div class="panel-header">
+                <h4>All Installations</h4>
+                <span id="resultsMeta">0 records</span>
+              </div>
+
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Client</th>
+                      <th>Address</th>
+                      <th>Type</th>
+                      <th>Maintenance</th>
+                      <th>Last Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody id="installationTableBody"></tbody>
+                </table>
+              </div>
+            </section>
           </div>
 
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Client</th>
-                  <th>Address</th>
-                  <th>Type</th>
-                  <th>Maintenance</th>
-                  <th>Last Updated</th>
-                </tr>
-              </thead>
-              <tbody id="installationTableBody"></tbody>
-            </table>
-          </div>
+          <aside class="right-rail">
+            <div id="profilePanel" class="info-card">
+              <div class="panel-header compact-header">
+                <h4>User Profile</h4>
+                <span class="mini-badge">Active</span>
+              </div>
+
+              <form id="profileForm" class="stacked-form">
+                <label>
+                  Full name
+                  <input id="profileNameInput" type="text" />
+                </label>
+
+                <label>
+                  Company
+                  <input id="profileCompanyInput" type="text" />
+                </label>
+
+                <label>
+                  Department
+                  <input id="profileDepartmentInput" type="text" />
+                </label>
+
+                <label>
+                  Job title
+                  <input id="profileTitleInput" type="text" />
+                </label>
+
+                <label>
+                  Phone
+                  <input id="profilePhoneInput" type="tel" />
+                </label>
+
+                <button type="submit" class="primary-button small-button">Save profile</button>
+              </form>
+            </div>
+
+            <div id="passwordResetPanel" class="info-card">
+              <div class="panel-header compact-header">
+                <h4>Password Reset</h4>
+              </div>
+
+              <form id="passwordResetForm" class="stacked-form">
+                <label>
+                  Current password
+                  <input id="currentPasswordInput" type="password" autocomplete="current-password" />
+                </label>
+
+                <label>
+                  New password
+                  <input id="newPasswordInput" type="password" autocomplete="new-password" />
+                </label>
+
+                <label>
+                  Confirm password
+                  <input id="confirmPasswordInput" type="password" autocomplete="new-password" />
+                </label>
+
+                <button type="submit" class="secondary-button small-button">Update password</button>
+              </form>
+            </div>
+
+            <div id="auditPanel" class="info-card hidden audit-only hidden-panel">
+              <div class="panel-header compact-header">
+                <h4>Admin Audit</h4>
+                <span class="mini-badge accent">Secure</span>
+              </div>
+              <div id="auditEntries" class="audit-entries"></div>
+            </div>
+          </aside>
         </section>
 
         <section id="detailPanel" class="detail-panel">
