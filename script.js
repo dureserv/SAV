@@ -224,8 +224,8 @@ function applyRoleAccess() {
     addIntrusionButton.title = '';
   }
 
-  if (!canViewAudit) {
-    if (auditPanel) auditPanel.classList.add('hidden');
+  if (!canViewAudit && auditPanel) {
+    auditPanel.classList.add('hidden');
   }
 }
 
@@ -701,12 +701,50 @@ async function handleForgotPasswordRequest() {
     });
 
     const data = await response.json();
-    loginError.textContent = data.message || 'Password reset request received.';
-    if (data.token) {
-      loginError.textContent += ` Token: ${data.token}`;
+    if (response.ok) {
+      const message = data.message || 'Password reset request received.';
+      loginError.textContent = message;
+      if (data.token) {
+        const token = window.prompt('Copy the reset token and paste it here to continue:', data.token);
+        if (token) {
+          const newPassword = window.prompt('Enter a new password (8+ characters):', '');
+          if (newPassword) {
+            await resetPasswordWithToken(token.trim(), newPassword.trim());
+          }
+        }
+      }
+      return;
     }
+
+    loginError.textContent = data.message || 'Unable to send password reset request.';
   } catch (_error) {
     loginError.textContent = 'Unable to send password reset request right now.';
+  }
+}
+
+async function resetPasswordWithToken(token, newPassword) {
+  if (!token || !newPassword || newPassword.length < 8) {
+    loginError.textContent = 'Reset token and a password of at least 8 characters are required.';
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/auth/password-reset', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password: newPassword })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      loginError.textContent = data.message || 'Password reset failed.';
+      return;
+    }
+
+    loginError.textContent = data.message || 'Password reset succeeded.';
+  } catch (_error) {
+    loginError.textContent = 'Unable to reset password right now.';
   }
 }
 
