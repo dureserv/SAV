@@ -104,6 +104,7 @@ const seedInstallations = [
 const state = {
   installations: [],
   selectedId: null,
+  currentUser: null,
   filters: {
     search: '',
     type: 'all',
@@ -122,6 +123,17 @@ const searchInput = document.getElementById('searchInput');
 const typeFilter = document.getElementById('typeFilter');
 const dateFilter = document.getElementById('dateFilter');
 const fileList = document.getElementById('fileList');
+const loginPage = document.getElementById('loginPage');
+const app = document.getElementById('app');
+const loginForm = document.getElementById('loginForm');
+const loginError = document.getElementById('loginError');
+const currentUserName = document.getElementById('currentUserName');
+const currentUserRole = document.getElementById('currentUserRole');
+const addFireButton = document.getElementById('addFireButton');
+const addIntrusionButton = document.getElementById('addIntrusionButton');
+const saveChangesButton = document.getElementById('saveChangesButton');
+const documentUploadInput = document.getElementById('documentUpload');
+const logoutButton = document.getElementById('logoutButton');
 
 function formatDate(value) {
   if (!value) return '—';
@@ -137,10 +149,75 @@ function isDueSoon(dateString) {
   return diffDays >= 0 && diffDays <= 30;
 }
 
+function hasPermission(permission) {
+  if (!state.currentUser) {
+    return false;
+  }
+
+  if (state.currentUser.role === 'Operations Lead') {
+    return true;
+  }
+
+  return Array.isArray(state.currentUser.permissions) && state.currentUser.permissions.includes(permission);
+}
+
+function updateUserCard() {
+  if (!state.currentUser) {
+    currentUserName.textContent = 'Not signed in';
+    currentUserRole.textContent = 'Please log in';
+    return;
+  }
+
+  currentUserName.textContent = state.currentUser.name;
+  currentUserRole.textContent = state.currentUser.role;
+}
+
+function applyRoleAccess() {
+  const canWrite = hasPermission('installation:write');
+  const canUpload = hasPermission('document:upload');
+
+  saveChangesButton.disabled = !canWrite;
+  addFireButton.disabled = !canWrite;
+  addIntrusionButton.disabled = !canWrite;
+  documentUploadInput.disabled = !canUpload;
+
+  if (!canWrite) {
+    saveChangesButton.title = 'You do not have permission to edit installations.';
+    addFireButton.title = 'You do not have permission to add installations.';
+    addIntrusionButton.title = 'You do not have permission to add installations.';
+  } else {
+    saveChangesButton.title = '';
+    addFireButton.title = '';
+    addIntrusionButton.title = '';
+  }
+}
+
+function showLogin() {
+  loginPage.classList.remove('hidden');
+  app.classList.add('hidden');
+}
+
+function showApp() {
+  loginPage.classList.add('hidden');
+  app.classList.remove('hidden');
+}
+
 async function loadInstallations() {
+  if (!state.currentUser) {
+    showLogin();
+    return;
+  }
+
   try {
-    const response = await fetch('/api/installations');
-    if (!response.ok) throw new Error('Failed to load installations');
+    const response = await fetch('/api/installations', { credentials: 'same-origin' });
+    if (!response.ok) {
+      if (response.status === 401) {
+        showLogin();
+        return;
+      }
+      throw new Error('Failed to load installations');
+    }
+
     const data = await response.json();
     state.installations = Array.isArray(data) && data.length ? data : seedInstallations;
     localStorage.setItem('sav-installations', JSON.stringify(state.installations));
@@ -262,7 +339,12 @@ function showAlert(message) {
   alertBanner.classList.remove('hidden');
 }
 
-async function addInstallation() {
+async function addInstallation(type = 'Fire') {
+  if (!hasPermission('installation:write')) {
+    showAlert('This user role does not have permission to add installations.');
+    return;
+  }
+
   const nextId = Date.now();
   const newInstallation = {
     id: nextId,
@@ -272,9 +354,9 @@ async function addInstallation() {
     phone: '+1 (555) 010-0000',
     address: 'Add site address',
     maintenanceDate: '2026-11-30',
-    type: 'Fire',
+    type,
     lastModified: new Date().toISOString().slice(0, 10),
-    lastModifiedBy: 'A. Morgan',
+    lastModifiedBy: state.currentUser?.name || 'A. Morgan',
     notes: 'New installation added and awaiting full details.',
     installerCode: '000000',
     masterCode: '0000',
@@ -287,13 +369,14 @@ async function addInstallation() {
     communication: 'Pending',
     controlRoom: 'Pending',
     documents: [],
-    audit: [`${new Date().toISOString().slice(0, 10)} — New installation record created by A. Morgan`]
+    audit: [`${new Date().toISOString().slice(0, 10)} — New installation record created by ${state.currentUser?.name || 'A. Morgan'}`]
   };
 
   try {
     const response = await fetch('/api/installations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify(newInstallation)
     });
 
@@ -318,6 +401,11 @@ async function addInstallation() {
 }
 
 async function saveChanges() {
+  if (!hasPermission('installation:write')) {
+    showAlert('This role cannot modify installation records.');
+    return;
+  }
+
   const item = state.installations.find((installation) => installation.id === state.selectedId);
   if (!item) return;
 
@@ -350,6 +438,7 @@ async function saveChanges() {
     const response = await fetch(`/api/installations/${item.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify(payload)
     });
 
@@ -383,6 +472,11 @@ function toggleMask(event) {
 }
 
 function handleDocumentUpload(event) {
+  if (!hasPermission('document:upload')) {
+    showAlert('This role does not have permission to upload documents.');
+    return;
+  }
+
   const files = Array.from(event.target.files || []);
   const currentItem = state.installations.find((installation) => installation.id === state.selectedId);
   if (!currentItem) return;
@@ -408,17 +502,77 @@ function showUpcomingAlerts() {
   showAlert(`Upcoming maintenance alerts: ${summary}`);
 }
 
-function handleLogin(event) {
+async function handleLogin(event) {
   event.preventDefault();
   const emailValue = document.getElementById('emailInput').value.trim();
   const passwordValue = document.getElementById('passwordInput').value.trim();
 
   if (!emailValue || !passwordValue) {
+    loginError.textContent = 'Please enter both email and password.';
     return;
   }
 
-  document.getElementById('loginPage').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
+  try {
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailValue, password: passwordValue })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      loginError.textContent = data.message || 'Unable to sign in.';
+      return;
+    }
+
+    state.currentUser = data.user;
+    updateUserCard();
+    applyRoleAccess();
+    showApp();
+    loginError.textContent = '';
+    await loadInstallations();
+  } catch (error) {
+    loginError.textContent = 'Unable to sign in right now. Please try again.';
+  }
+}
+
+async function logout() {
+  try {
+    await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'same-origin'
+    });
+  } catch (error) {
+    // Intentionally ignore logout failures so the user can still be signed out locally.
+  }
+
+  state.currentUser = null;
+  updateUserCard();
+  showLogin();
+}
+
+async function checkSession() {
+  try {
+    const response = await fetch('/api/session', { credentials: 'same-origin' });
+    if (!response.ok) {
+      state.currentUser = null;
+      updateUserCard();
+      showLogin();
+      return;
+    }
+
+    const data = await response.json();
+    state.currentUser = data.user;
+    updateUserCard();
+    applyRoleAccess();
+    showApp();
+    await loadInstallations();
+  } catch (error) {
+    state.currentUser = null;
+    updateUserCard();
+    showLogin();
+  }
 }
 
 searchInput.addEventListener('input', (event) => {
@@ -436,13 +590,16 @@ dateFilter.addEventListener('change', (event) => {
   renderTable();
 });
 
-document.getElementById('addInstallationButton').addEventListener('click', addInstallation);
-document.getElementById('saveChangesButton').addEventListener('click', saveChanges);
+addFireButton.addEventListener('click', () => addInstallation('Fire'));
+addIntrusionButton.addEventListener('click', () => addInstallation('Intrusion'));
+saveChangesButton.addEventListener('click', saveChanges);
 document.getElementById('alertButton').addEventListener('click', showUpcomingAlerts);
-document.getElementById('documentUpload').addEventListener('change', handleDocumentUpload);
-document.getElementById('loginForm').addEventListener('submit', handleLogin);
+documentUploadInput.addEventListener('change', handleDocumentUpload);
+loginForm.addEventListener('submit', handleLogin);
+logoutButton.addEventListener('click', logout);
 document.querySelectorAll('.toggle-mask').forEach((button) => {
   button.addEventListener('click', toggleMask);
 });
 
-loadInstallations();
+updateUserCard();
+checkSession();

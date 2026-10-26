@@ -1,12 +1,15 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const rootDir = __dirname;
 const dataDir = path.join(rootDir, 'data');
 const dataFile = path.join(dataDir, 'installations.json');
+const usersFile = path.join(dataDir, 'users.json');
+const sessions = new Map();
 
 const seedData = [
   {
@@ -111,6 +114,37 @@ const seedData = [
   }
 ];
 
+function hashPassword(value) {
+  return crypto.createHash('sha256').update(String(value)).digest('hex');
+}
+
+const seedUsers = [
+  {
+    id: 1,
+    name: 'Alex Morgan',
+    email: 'admin@sav.local',
+    passwordHash: hashPassword('securevault'),
+    role: 'Operations Lead',
+    permissions: ['dashboard:view', 'installation:read', 'installation:write', 'alert:view', 'document:upload']
+  },
+  {
+    id: 2,
+    name: 'Sam Patel',
+    email: 'installer@sav.local',
+    passwordHash: hashPassword('installer123'),
+    role: 'Installer',
+    permissions: ['dashboard:view', 'installation:read', 'installation:write', 'alert:view', 'document:upload']
+  },
+  {
+    id: 3,
+    name: 'Renee Nguyen',
+    email: 'auditor@sav.local',
+    passwordHash: hashPassword('auditor123'),
+    role: 'Auditor',
+    permissions: ['dashboard:view', 'installation:read', 'alert:view']
+  }
+];
+
 function ensureDataStore() {
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -119,6 +153,31 @@ function ensureDataStore() {
   if (!fs.existsSync(dataFile)) {
     fs.writeFileSync(dataFile, JSON.stringify(seedData, null, 2));
   }
+
+  if (!fs.existsSync(usersFile)) {
+    fs.writeFileSync(usersFile, JSON.stringify(seedUsers, null, 2));
+  }
+}
+
+function parseCookies(req) {
+  const cookies = {};
+  const header = req.headers.cookie;
+
+  if (!header) {
+    return cookies;
+  }
+
+  header.split(';').forEach((pair) => {
+    const [key, ...valueParts] = pair.split('=');
+    if (!key) {
+      return;
+    }
+
+    const value = valueParts.join('=');
+    cookies[key.trim()] = value ? decodeURIComponent(value.trim()) : '';
+  });
+
+  return cookies;
 }
 
 function readInstallations() {
@@ -131,6 +190,52 @@ function writeInstallations(data) {
   fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
 }
 
+function readUsers() {
+  ensureDataStore();
+  const raw = fs.readFileSync(usersFile, 'utf8');
+  return JSON.parse(raw);
+}
+
+function serializeUser(user) {
+  const { passwordHash, ...safeUser } = user;
+  return safeUser;
+}
+
+function getSessionUser(req) {
+  const token = req.cookies.sessionToken;
+  if (!token) {
+    return null;
+  }
+
+  return sessions.get(token) || null;
+}
+
+function requireAuth(req, res, next) {
+  const user = getSessionUser(req);
+
+  if (!user) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  req.user = user;
+  next();
+}
+
+function requirePermission(permission) {
+  return (req, res, next) => {
+    if (!req.user.permissions || !req.user.permissions.includes(permission)) {
+      return res.status(403).json({ message: 'Forbidden: insufficient permissions' });
+    }
+
+    next();
+  };
+}
+
+app.use((req, res, next) => {
+  req.cookies = parseCookies(req);
+  next();
+});
+
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(rootDir));
 
@@ -138,11 +243,52 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'SAV API', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/installations', (req, res) => {
+app.get('/api/session', (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({ message: 'Not authenticated' });
+  }
+
+  res.json({ user });
+});
+
+app.post('/api/login', (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const password = String(req.body.password || '').trim();
+  const users = readUsers();
+  const matchedUser = users.find((user) => {
+    return user.email.toLowerCase() === email && user.passwordHash === hashPassword(password);
+  });
+
+  if (!matchedUser) {
+    return res.status(401).json({ message: 'Invalid email or password' });
+  }
+
+  const sessionUser = serializeUser(matchedUser);
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(token, sessionUser);
+
+  res.cookie('sessionToken', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 8 * 60 * 60 * 1000
+  });
+
+  res.json({ user: sessionUser });
+});
+
+app.post('/api/logout', requireAuth, (req, res) => {
+  const token = req.cookies.sessionToken;
+  sessions.delete(token);
+  res.clearCookie('sessionToken');
+  res.json({ ok: true });
+});
+
+app.get('/api/installations', requireAuth, (req, res) => {
   res.json(readInstallations());
 });
 
-app.post('/api/installations', (req, res) => {
+app.post('/api/installations', requireAuth, requirePermission('installation:write'), (req, res) => {
   const data = readInstallations();
   const payload = { ...req.body };
 
@@ -156,7 +302,7 @@ app.post('/api/installations', (req, res) => {
     maintenanceDate: payload.maintenanceDate || new Date().toISOString().slice(0, 10),
     type: payload.type || 'Fire',
     lastModified: payload.lastModified || new Date().toISOString().slice(0, 10),
-    lastModifiedBy: payload.lastModifiedBy || 'A. Morgan',
+    lastModifiedBy: payload.lastModifiedBy || req.user.name,
     notes: payload.notes || 'New installation added and awaiting full details.',
     installerCode: payload.installerCode || '000000',
     masterCode: payload.masterCode || '0000',
@@ -171,7 +317,7 @@ app.post('/api/installations', (req, res) => {
     documents: Array.isArray(payload.documents) ? payload.documents : [],
     audit: Array.isArray(payload.audit)
       ? payload.audit
-      : [`${new Date().toISOString().slice(0, 10)} — New installation record created by ${payload.lastModifiedBy || 'A. Morgan'}`]
+      : [`${new Date().toISOString().slice(0, 10)} — New installation record created by ${req.user.name}`]
   };
 
   data.unshift(newItem);
@@ -179,7 +325,7 @@ app.post('/api/installations', (req, res) => {
   res.status(201).json(newItem);
 });
 
-app.put('/api/installations/:id', (req, res) => {
+app.put('/api/installations/:id', requireAuth, requirePermission('installation:write'), (req, res) => {
   const id = Number(req.params.id);
   const data = readInstallations();
   const index = data.findIndex((item) => item.id === id);
@@ -201,3 +347,207 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`SAV server running at http://localhost:${PORT}`);
 });
+
+module.exports = { app, hashPassword };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+a

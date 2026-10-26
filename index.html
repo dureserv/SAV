@@ -24,18 +24,21 @@
         <form id="loginForm" class="login-form">
           <label>
             Colleague email
-            <input type="email" id="emailInput" value="admin@sav.local" autocomplete="username" />
+            <input type="email" id="emailInput" placeholder="name@sav.local" autocomplete="username" />
           </label>
 
           <label>
             Password
-            <input type="password" id="passwordInput" value="securevault" autocomplete="current-password" />
+            <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="current-password" />
           </label>
+
+          <div id="loginError" class="login-error" aria-live="polite"></div>
 
           <button type="submit" class="primary-button">Access Dashboard</button>
         </form>
 
         <p class="security-note">Authorized team access only</p>
+        <p class="demo-credentials">Demo accounts: admin@sav.local / securevault, installer@sav.local / installer123, auditor@sav.local / auditor123</p>
       </div>
     </div>
 
@@ -59,9 +62,10 @@
         <div class="user-card">
           <span class="user-dot"></span>
           <div>
-            <strong>Alex Morgan</strong>
-            <small>Operations Lead</small>
+            <strong id="currentUserName">Not signed in</strong>
+            <small id="currentUserRole">Please log in</small>
           </div>
+          <button id="logoutButton" class="logout-button" type="button">Log out</button>
         </div>
       </aside>
 

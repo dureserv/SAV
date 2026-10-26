@@ -152,14 +152,16 @@ input:focus, select:focus, textarea:focus {
 .primary-button,
 .secondary-button,
 .nav-item,
-.toggle-mask {
+.toggle-mask,
+.logout-button {
   border: none;
   border-radius: 12px;
   transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
 }
 
 .primary-button,
-.secondary-button {
+.secondary-button,
+.logout-button {
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -173,23 +175,48 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 12px 22px rgba(43, 178, 255, 0.28);
 }
 
+.primary-button:disabled,
+.secondary-button:disabled,
+.logout-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .secondary-button {
   background: rgba(105, 212, 255, 0.12);
   border: 1px solid rgba(105, 212, 255, 0.25);
   color: var(--text);
 }
 
-.primary-button:hover,
-.secondary-button:hover,
+.logout-button {
+  background: rgba(255, 123, 123, 0.08);
+  border: 1px solid rgba(255, 123, 123, 0.18);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  margin-left: auto;
+}
+
+.primary-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled),
 .nav-item:hover,
 .toggle-mask:hover {
   transform: translateY(-1px);
 }
 
-.security-note {
+.security-note,
+.demo-credentials {
   margin-top: 22px;
   text-align: center;
   color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.login-error {
+  min-height: 20px;
+  color: #ffd2d2;
   font-size: 0.8rem;
 }
 
