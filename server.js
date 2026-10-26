@@ -1,26 +1,63 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const rootDir = __dirname;
 const dataDir = path.join(rootDir, 'data');
-const dataFile = path.join(dataDir, 'installations.json');
-const usersFile = path.join(dataDir, 'users.json');
-const sessions = new Map();
+const dbFile = path.join(dataDir, 'sav-db.json');
 
-const seedData = [
+const seedClients = [
   {
     id: 1,
+    name: 'Northside Apartments',
+    contactName: 'Maya Lewis',
+    email: 'maya@northside.example',
+    phone: '+1 (415) 555-1024',
+    address: '22 River Walk, San Jose, CA',
+    notes: 'Multi-tenant residential property with mixed life safety systems.'
+  },
+  {
+    id: 2,
+    name: 'Willow Creek Retail',
+    contactName: 'Jordan Bell',
+    email: 'jordan@willowcreek.example',
+    phone: '+1 (415) 555-7322',
+    address: '98 Market Street, Oakland, CA',
+    notes: 'Retail center with storefront, office suite, and rear service corridor.'
+  },
+  {
+    id: 3,
+    name: 'Harbor Medical Center',
+    contactName: 'Dana Walters',
+    email: 'dana@harborcare.example',
+    phone: '+1 (510) 555-5341',
+    address: '540 Bayview Drive, Fremont, CA',
+    notes: 'Healthcare campus with high-rise safety and emergency compliance review.'
+  },
+  {
+    id: 4,
+    name: 'Cedar School District',
+    contactName: 'Olivia Shaw',
+    email: 'olivia@cedarschool.example',
+    phone: '+1 (408) 555-9967',
+    address: '120 El Dorado Ave, Sunnyvale, CA',
+    notes: 'District-wide security coverage for administration and classroom buildings.'
+  }
+];
+
+const seedInstallations = [
+  {
+    id: 1,
+    clientId: 1,
+    type: 'Fire',
     clientName: 'Northside Apartments',
     contactName: 'Maya Lewis',
     email: 'maya@northside.example',
     phone: '+1 (415) 555-1024',
     address: '22 River Walk, San Jose, CA',
     maintenanceDate: '2026-11-14',
-    type: 'Fire',
     lastModified: '2026-10-10',
     lastModifiedBy: 'A. Morgan',
     notes: 'Elevator lobby sprinkler inspection scheduled after renovation.',
@@ -39,13 +76,14 @@ const seedData = [
   },
   {
     id: 2,
+    clientId: 2,
+    type: 'Intrusion',
     clientName: 'Willow Creek Retail',
     contactName: 'Jordan Bell',
     email: 'jordan@willowcreek.example',
     phone: '+1 (415) 555-7322',
     address: '98 Market Street, Oakland, CA',
     maintenanceDate: '2026-10-29',
-    type: 'Intrusion',
     lastModified: '2026-10-11',
     lastModifiedBy: 'S. Patel',
     notes: 'Front desk keypad to be reprogrammed following tenant turnover.',
@@ -64,13 +102,14 @@ const seedData = [
   },
   {
     id: 3,
+    clientId: 3,
+    type: 'Fire',
     clientName: 'Harbor Medical Center',
     contactName: 'Dana Walters',
     email: 'dana@harborcare.example',
     phone: '+1 (510) 555-5341',
     address: '540 Bayview Drive, Fremont, CA',
     maintenanceDate: '2026-12-08',
-    type: 'Fire',
     lastModified: '2026-10-05',
     lastModifiedBy: 'R. Nguyen',
     notes: 'High-rise code compliance review and annual contractor signoff required.',
@@ -89,13 +128,14 @@ const seedData = [
   },
   {
     id: 4,
+    clientId: 4,
+    type: 'Intrusion',
     clientName: 'Cedar School District',
     contactName: 'Olivia Shaw',
     email: 'olivia@cedarschool.example',
     phone: '+1 (408) 555-9967',
     address: '120 El Dorado Ave, Sunnyvale, CA',
     maintenanceDate: '2026-10-27',
-    type: 'Intrusion',
     lastModified: '2026-10-12',
     lastModifiedBy: 'M. Ortiz',
     notes: 'Administration building access points flagged for new badge integration.',
@@ -114,187 +154,52 @@ const seedData = [
   }
 ];
 
-function hashPassword(value) {
-  return crypto.createHash('sha256').update(String(value)).digest('hex');
-}
-
-const seedUsers = [
-  {
-    id: 1,
-    name: 'Alex Morgan',
-    email: 'admin@sav.local',
-    passwordHash: hashPassword('securevault'),
-    role: 'Operations Lead',
-    permissions: ['dashboard:view', 'installation:read', 'installation:write', 'alert:view', 'document:upload']
-  },
-  {
-    id: 2,
-    name: 'Sam Patel',
-    email: 'installer@sav.local',
-    passwordHash: hashPassword('installer123'),
-    role: 'Installer',
-    permissions: ['dashboard:view', 'installation:read', 'installation:write', 'alert:view', 'document:upload']
-  },
-  {
-    id: 3,
-    name: 'Renee Nguyen',
-    email: 'auditor@sav.local',
-    passwordHash: hashPassword('auditor123'),
-    role: 'Auditor',
-    permissions: ['dashboard:view', 'installation:read', 'alert:view']
-  }
-];
-
 function ensureDataStore() {
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  if (!fs.existsSync(dataFile)) {
-    fs.writeFileSync(dataFile, JSON.stringify(seedData, null, 2));
-  }
-
-  if (!fs.existsSync(usersFile)) {
-    fs.writeFileSync(usersFile, JSON.stringify(seedUsers, null, 2));
+  if (!fs.existsSync(dbFile)) {
+    fs.writeFileSync(dbFile, JSON.stringify({ clients: seedClients, installations: seedInstallations }, null, 2));
   }
 }
 
-function parseCookies(req) {
-  const cookies = {};
-  const header = req.headers.cookie;
-
-  if (!header) {
-    return cookies;
-  }
-
-  header.split(';').forEach((pair) => {
-    const [key, ...valueParts] = pair.split('=');
-    if (!key) {
-      return;
-    }
-
-    const value = valueParts.join('=');
-    cookies[key.trim()] = value ? decodeURIComponent(value.trim()) : '';
-  });
-
-  return cookies;
-}
-
-function readInstallations() {
+function readStore() {
   ensureDataStore();
-  const raw = fs.readFileSync(dataFile, 'utf8');
-  return JSON.parse(raw);
-}
+  const raw = fs.readFileSync(dbFile, 'utf8');
 
-function writeInstallations(data) {
-  fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
-}
-
-function readUsers() {
-  ensureDataStore();
-  const raw = fs.readFileSync(usersFile, 'utf8');
-  return JSON.parse(raw);
-}
-
-function serializeUser(user) {
-  const { passwordHash, ...safeUser } = user;
-  return safeUser;
-}
-
-function getSessionUser(req) {
-  const token = req.cookies.sessionToken;
-  if (!token) {
-    return null;
+  try {
+    const parsed = JSON.parse(raw);
+    const clients = Array.isArray(parsed.clients) && parsed.clients.length ? parsed.clients : seedClients;
+    const installations = Array.isArray(parsed.installations) && parsed.installations.length ? parsed.installations : seedInstallations;
+    return { clients, installations };
+  } catch (error) {
+    return { clients: seedClients, installations: seedInstallations };
   }
-
-  return sessions.get(token) || null;
 }
 
-function requireAuth(req, res, next) {
-  const user = getSessionUser(req);
-
-  if (!user) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-
-  req.user = user;
-  next();
+function writeStore(store) {
+  fs.writeFileSync(dbFile, JSON.stringify(store, null, 2));
 }
 
-function requirePermission(permission) {
-  return (req, res, next) => {
-    if (!req.user.permissions || !req.user.permissions.includes(permission)) {
-      return res.status(403).json({ message: 'Forbidden: insufficient permissions' });
-    }
-
-    next();
+function normalizeClientPayload(payload = {}) {
+  return {
+    name: payload.name || payload.clientName || 'New Client',
+    contactName: payload.contactName || 'Pending assignment',
+    email: payload.email || 'contact@pending.example',
+    phone: payload.phone || '+1 (555) 010-0000',
+    address: payload.address || 'Add client address',
+    notes: payload.notes || 'Client profile created and pending review.'
   };
 }
 
-app.use((req, res, next) => {
-  req.cookies = parseCookies(req);
-  next();
-});
+function normalizeInstallationPayload(payload = {}) {
+  const clientId = Number(payload.clientId ?? 0);
+  const clientName = payload.clientName || payload.name || 'Client';
 
-app.use(express.json({ limit: '2mb' }));
-app.use(express.static(rootDir));
-
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'SAV API', timestamp: new Date().toISOString() });
-});
-
-app.get('/api/session', (req, res) => {
-  const user = getSessionUser(req);
-  if (!user) {
-    return res.status(401).json({ message: 'Not authenticated' });
-  }
-
-  res.json({ user });
-});
-
-app.post('/api/login', (req, res) => {
-  const email = String(req.body.email || '').trim().toLowerCase();
-  const password = String(req.body.password || '').trim();
-  const users = readUsers();
-  const matchedUser = users.find((user) => {
-    return user.email.toLowerCase() === email && user.passwordHash === hashPassword(password);
-  });
-
-  if (!matchedUser) {
-    return res.status(401).json({ message: 'Invalid email or password' });
-  }
-
-  const sessionUser = serializeUser(matchedUser);
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, sessionUser);
-
-  res.cookie('sessionToken', token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 8 * 60 * 60 * 1000
-  });
-
-  res.json({ user: sessionUser });
-});
-
-app.post('/api/logout', requireAuth, (req, res) => {
-  const token = req.cookies.sessionToken;
-  sessions.delete(token);
-  res.clearCookie('sessionToken');
-  res.json({ ok: true });
-});
-
-app.get('/api/installations', requireAuth, (req, res) => {
-  res.json(readInstallations());
-});
-
-app.post('/api/installations', requireAuth, requirePermission('installation:write'), (req, res) => {
-  const data = readInstallations();
-  const payload = { ...req.body };
-
-  const newItem = {
-    id: Date.now(),
-    clientName: payload.clientName || 'New Site',
+  return {
+    clientId,
+    clientName,
     contactName: payload.contactName || 'Pending assignment',
     email: payload.email || 'contact@pending.example',
     phone: payload.phone || '+1 (555) 010-0000',
@@ -302,7 +207,7 @@ app.post('/api/installations', requireAuth, requirePermission('installation:writ
     maintenanceDate: payload.maintenanceDate || new Date().toISOString().slice(0, 10),
     type: payload.type || 'Fire',
     lastModified: payload.lastModified || new Date().toISOString().slice(0, 10),
-    lastModifiedBy: payload.lastModifiedBy || req.user.name,
+    lastModifiedBy: payload.lastModifiedBy || 'A. Morgan',
     notes: payload.notes || 'New installation added and awaiting full details.',
     installerCode: payload.installerCode || '000000',
     masterCode: payload.masterCode || '0000',
@@ -317,26 +222,135 @@ app.post('/api/installations', requireAuth, requirePermission('installation:writ
     documents: Array.isArray(payload.documents) ? payload.documents : [],
     audit: Array.isArray(payload.audit)
       ? payload.audit
-      : [`${new Date().toISOString().slice(0, 10)} — New installation record created by ${req.user.name}`]
+      : [`${new Date().toISOString().slice(0, 10)} — New installation record created by ${payload.lastModifiedBy || 'A. Morgan'}`]
+  };
+}
+
+app.use(express.json({ limit: '2mb' }));
+app.use(express.static(rootDir));
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, service: 'SAV API', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/clients', (req, res) => {
+  const { clients } = readStore();
+  res.json(clients);
+});
+
+app.post('/api/clients', (req, res) => {
+  const store = readStore();
+  const payload = normalizeClientPayload(req.body);
+
+  const newClient = {
+    id: Date.now(),
+    ...payload
   };
 
-  data.unshift(newItem);
-  writeInstallations(data);
+  store.clients.unshift(newClient);
+  writeStore(store);
+  res.status(201).json(newClient);
+});
+
+app.put('/api/clients/:id', (req, res) => {
+  const store = readStore();
+  const id = Number(req.params.id);
+  const index = store.clients.findIndex((client) => client.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ message: 'Client not found' });
+  }
+
+  const updatedClient = { ...store.clients[index], ...normalizeClientPayload(req.body), id };
+  store.clients[index] = updatedClient;
+
+  store.installations = store.installations.map((installation) => {
+    if (installation.clientId === id) {
+      return {
+        ...installation,
+        clientName: updatedClient.name,
+        contactName: updatedClient.contactName,
+        email: updatedClient.email,
+        phone: updatedClient.phone,
+        address: updatedClient.address
+      };
+    }
+    return installation;
+  });
+
+  writeStore(store);
+  res.json(updatedClient);
+});
+
+app.get('/api/installations', (req, res) => {
+  const { clients, installations } = readStore();
+
+  const enriched = installations.map((installation) => {
+    const client = clients.find((entry) => entry.id === installation.clientId);
+    return {
+      ...installation,
+      clientName: client?.name || installation.clientName || 'Unknown Client',
+      contactName: client?.contactName || installation.contactName || 'Pending assignment',
+      email: client?.email || installation.email || 'contact@pending.example',
+      phone: client?.phone || installation.phone || '+1 (555) 010-0000',
+      address: client?.address || installation.address || 'Add site address'
+    };
+  });
+
+  res.json(enriched);
+});
+
+app.post('/api/installations', (req, res) => {
+  const store = readStore();
+  const payload = normalizeInstallationPayload(req.body);
+  const clientId = Number(payload.clientId || 0);
+
+  if (!clientId || !store.clients.some((client) => client.id === clientId)) {
+    return res.status(400).json({ message: 'A valid clientId is required to create an installation.' });
+  }
+
+  const client = store.clients.find((entry) => entry.id === clientId);
+  const newItem = {
+    id: Date.now(),
+    ...payload,
+    clientName: client?.name || payload.clientName || 'Client',
+    contactName: client?.contactName || payload.contactName || 'Pending assignment',
+    email: client?.email || payload.email || 'contact@pending.example',
+    phone: client?.phone || payload.phone || '+1 (555) 010-0000',
+    address: client?.address || payload.address || 'Add site address'
+  };
+
+  store.installations.unshift(newItem);
+  writeStore(store);
   res.status(201).json(newItem);
 });
 
-app.put('/api/installations/:id', requireAuth, requirePermission('installation:write'), (req, res) => {
+app.put('/api/installations/:id', (req, res) => {
+  const store = readStore();
   const id = Number(req.params.id);
-  const data = readInstallations();
-  const index = data.findIndex((item) => item.id === id);
+  const index = store.installations.findIndex((item) => item.id === id);
 
   if (index === -1) {
     return res.status(404).json({ message: 'Installation not found' });
   }
 
-  const updated = { ...data[index], ...req.body, id };
-  data[index] = updated;
-  writeInstallations(data);
+  const clientId = Number(req.body.clientId || store.installations[index].clientId || 0);
+  const client = store.clients.find((entry) => entry.id === clientId);
+  const payload = normalizeInstallationPayload({ ...store.installations[index], ...req.body, clientId });
+
+  const updated = {
+    ...store.installations[index],
+    ...payload,
+    id,
+    clientName: client?.name || payload.clientName || store.installations[index].clientName,
+    contactName: client?.contactName || payload.contactName || store.installations[index].contactName,
+    email: client?.email || payload.email || store.installations[index].email,
+    phone: client?.phone || payload.phone || store.installations[index].phone,
+    address: client?.address || payload.address || store.installations[index].address
+  };
+
+  store.installations[index] = updated;
+  writeStore(store);
   res.json(updated);
 });
 
@@ -347,207 +361,3 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`SAV server running at http://localhost:${PORT}`);
 });
-
-module.exports = { app, hashPassword };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-a
