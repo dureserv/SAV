@@ -105,6 +105,7 @@ const state = {
   installations: [],
   selectedId: null,
   currentUser: null,
+  auditEntries: [],
   filters: {
     search: '',
     type: 'all',
@@ -129,11 +130,22 @@ const loginForm = document.getElementById('loginForm');
 const loginError = document.getElementById('loginError');
 const currentUserName = document.getElementById('currentUserName');
 const currentUserRole = document.getElementById('currentUserRole');
+const sessionStatus = document.getElementById('sessionStatus');
 const addFireButton = document.getElementById('addFireButton');
 const addIntrusionButton = document.getElementById('addIntrusionButton');
 const saveChangesButton = document.getElementById('saveChangesButton');
 const documentUploadInput = document.getElementById('documentUpload');
 const logoutButton = document.getElementById('logoutButton');
+const forgotPasswordButton = document.getElementById('forgotPasswordButton');
+const profileForm = document.getElementById('profileForm');
+const passwordResetForm = document.getElementById('passwordResetForm');
+const profileNameInput = document.getElementById('profileNameInput');
+const profileCompanyInput = document.getElementById('profileCompanyInput');
+const profileDepartmentInput = document.getElementById('profileDepartmentInput');
+const profileTitleInput = document.getElementById('profileTitleInput');
+const profilePhoneInput = document.getElementById('profilePhoneInput');
+const auditEntries = document.getElementById('auditEntries');
+const auditPanel = document.getElementById('auditPanel');
 
 function formatDate(value) {
   if (!value) return '—';
@@ -150,36 +162,57 @@ function isDueSoon(dateString) {
 }
 
 function hasPermission(permission) {
-  if (!state.currentUser) {
-    return false;
-  }
-
-  if (state.currentUser.role === 'Operations Lead') {
-    return true;
-  }
-
-  return Array.isArray(state.currentUser.permissions) && state.currentUser.permissions.includes(permission);
+  if (!state.currentUser) return false;
+  const permissions = Array.isArray(state.currentUser.permissions) ? state.currentUser.permissions : [];
+  return permissions.includes(permission);
 }
 
 function updateUserCard() {
   if (!state.currentUser) {
     currentUserName.textContent = 'Not signed in';
     currentUserRole.textContent = 'Please log in';
+    sessionStatus.textContent = 'Not authenticated';
     return;
   }
 
   currentUserName.textContent = state.currentUser.name;
-  currentUserRole.textContent = state.currentUser.role;
+  currentUserRole.textContent = `${state.currentUser.role} • ${state.currentUser.department || 'Operations'}`;
+  sessionStatus.textContent = `Authenticated via session/JWT • ${state.currentUser.role}`;
+}
+
+function setSessionStatus(message) {
+  if (sessionStatus) sessionStatus.textContent = message;
 }
 
 function applyRoleAccess() {
   const canWrite = hasPermission('installation:write');
   const canUpload = hasPermission('document:upload');
+  const canViewAudit = hasPermission('audit:view');
 
   saveChangesButton.disabled = !canWrite;
   addFireButton.disabled = !canWrite;
   addIntrusionButton.disabled = !canWrite;
   documentUploadInput.disabled = !canUpload;
+
+  const auditPanels = document.querySelectorAll('.audit-only');
+  auditPanels.forEach((element) => {
+    if (canViewAudit) {
+      element.classList.remove('hidden');
+    } else {
+      element.classList.add('hidden');
+    }
+  });
+
+  const navButtons = document.querySelectorAll('.nav-item');
+  navButtons.forEach((button) => {
+    const view = button.dataset.view;
+    const alwaysVisible = ['dashboard', 'installations', 'alerts', 'documents', 'profile'];
+    if (view === 'audit' && !canViewAudit) {
+      button.classList.add('hidden');
+    } else if (alwaysVisible.includes(view)) {
+      button.classList.remove('hidden');
+    }
+  });
 
   if (!canWrite) {
     saveChangesButton.title = 'You do not have permission to edit installations.';
@@ -189,6 +222,10 @@ function applyRoleAccess() {
     saveChangesButton.title = '';
     addFireButton.title = '';
     addIntrusionButton.title = '';
+  }
+
+  if (!canViewAudit) {
+    if (auditPanel) auditPanel.classList.add('hidden');
   }
 }
 
@@ -200,6 +237,45 @@ function showLogin() {
 function showApp() {
   loginPage.classList.add('hidden');
   app.classList.remove('hidden');
+}
+
+function renderAuditEntries(entries) {
+  if (!auditEntries) return;
+  if (!Array.isArray(entries) || !entries.length) {
+    auditEntries.innerHTML = '<div class="audit-empty">No security events available.</div>';
+    return;
+  }
+
+  auditEntries.innerHTML = entries.slice(0, 8).map((entry) => `
+    <div class="audit-entry">
+      <div class="audit-title">${entry.action || 'auth_event'}</div>
+      <div class="audit-meta">${entry.email || 'unknown'} • ${new Date(entry.timestamp || Date.now()).toLocaleString()}</div>
+      <div class="audit-detail">${entry.details || 'No details provided.'}</div>
+    </div>
+  `).join('');
+}
+
+async function loadAuditLog() {
+  if (!state.currentUser || !hasPermission('audit:view')) return;
+
+  try {
+    const response = await fetch('/api/auth/audit', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!response.ok) {
+      renderAuditEntries([]);
+      return;
+    }
+
+    const data = await response.json();
+    state.auditEntries = Array.isArray(data.entries) ? data.entries : [];
+    renderAuditEntries(state.auditEntries);
+  } catch (_error) {
+    renderAuditEntries([]);
+  }
 }
 
 async function loadInstallations() {
@@ -221,7 +297,7 @@ async function loadInstallations() {
     const data = await response.json();
     state.installations = Array.isArray(data) && data.length ? data : seedInstallations;
     localStorage.setItem('sav-installations', JSON.stringify(state.installations));
-  } catch (error) {
+  } catch (_error) {
     const fallback = JSON.parse(localStorage.getItem('sav-installations') || 'null');
     state.installations = Array.isArray(fallback) && fallback.length ? fallback : seedInstallations;
   }
@@ -242,8 +318,8 @@ function getFilteredInstallations() {
     const search = state.filters.search.trim().toLowerCase();
     const matchesSearch =
       !search ||
-      item.clientName.toLowerCase().includes(search) ||
-      item.address.toLowerCase().includes(search);
+      (item.clientName && item.clientName.toLowerCase().includes(search)) ||
+      (item.address && item.address.toLowerCase().includes(search));
 
     const matchesType = state.filters.type === 'all' || item.type === state.filters.type;
     const matchesDate = !state.filters.date || item.maintenanceDate === state.filters.date;
@@ -320,9 +396,7 @@ function populateForm() {
 
   fields.forEach(([fieldId, value]) => {
     const field = document.getElementById(fieldId);
-    if (field) {
-      field.value = value ?? '';
-    }
+    if (field) field.value = value ?? '';
   });
 
   document.getElementById('systemTypeTitle').textContent = `${item.type} System Details`;
@@ -388,7 +462,7 @@ async function addInstallation(type = 'Fire') {
       state.installations.unshift(newInstallation);
       state.selectedId = newInstallation.id;
     }
-  } catch (error) {
+  } catch (_error) {
     state.installations.unshift(newInstallation);
     state.selectedId = newInstallation.id;
   }
@@ -450,7 +524,7 @@ async function saveChanges() {
       const index = state.installations.findIndex((installation) => installation.id === item.id);
       if (index >= 0) state.installations[index] = updatedItem;
     }
-  } catch (error) {
+  } catch (_error) {
     const index = state.installations.findIndex((installation) => installation.id === item.id);
     if (index >= 0) state.installations[index] = updatedItem;
   }
@@ -513,7 +587,7 @@ async function handleLogin(event) {
   }
 
   try {
-    const response = await fetch('/api/login', {
+    const response = await fetch('/api/auth/login', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -527,52 +601,168 @@ async function handleLogin(event) {
     }
 
     state.currentUser = data.user;
+    state.currentUser.permissions = Array.isArray(data.user.permissions) ? data.user.permissions : [];
     updateUserCard();
     applyRoleAccess();
     showApp();
     loginError.textContent = '';
+    setSessionStatus(`Authenticated • ${data.user.role}`);
     await loadInstallations();
-  } catch (error) {
+    await loadAuditLog();
+  } catch (_error) {
     loginError.textContent = 'Unable to sign in right now. Please try again.';
+  }
+}
+
+async function handleProfileUpdate(event) {
+  event.preventDefault();
+  if (!state.currentUser) return;
+
+  const payload = {
+    name: profileNameInput.value.trim(),
+    company: profileCompanyInput.value.trim(),
+    department: profileDepartmentInput.value.trim(),
+    title: profileTitleInput.value.trim(),
+    phone: profilePhoneInput.value.trim()
+  };
+
+  try {
+    const response = await fetch('/api/users/me', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      showAlert(data.message || 'Profile update failed.');
+      return;
+    }
+
+    state.currentUser = data.user;
+    updateUserCard();
+    applyRoleAccess();
+    showAlert('Profile updated successfully.');
+  } catch (_error) {
+    showAlert('Unable to save profile right now.');
+  }
+}
+
+async function handlePasswordChange(event) {
+  event.preventDefault();
+  const currentPassword = document.getElementById('currentPasswordInput').value;
+  const newPassword = document.getElementById('newPasswordInput').value;
+  const confirmPassword = document.getElementById('confirmPasswordInput').value;
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    showAlert('Please complete all password fields.');
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    showAlert('New password confirmation does not match.');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      showAlert(data.message || 'Password change failed.');
+      return;
+    }
+
+    document.getElementById('currentPasswordInput').value = '';
+    document.getElementById('newPasswordInput').value = '';
+    document.getElementById('confirmPasswordInput').value = '';
+    showAlert('Password updated successfully.');
+  } catch (_error) {
+    showAlert('Unable to change password right now.');
+  }
+}
+
+async function handleForgotPasswordRequest() {
+  const email = window.prompt('Enter the email address for your SAV account:', 'name@sav.local');
+  if (!email) return;
+
+  try {
+    const response = await fetch('/api/auth/password-reset-request', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim() })
+    });
+
+    const data = await response.json();
+    loginError.textContent = data.message || 'Password reset request received.';
+    if (data.token) {
+      loginError.textContent += ` Token: ${data.token}`;
+    }
+  } catch (_error) {
+    loginError.textContent = 'Unable to send password reset request right now.';
   }
 }
 
 async function logout() {
   try {
-    await fetch('/api/logout', {
+    await fetch('/api/auth/logout', {
       method: 'POST',
       credentials: 'same-origin'
     });
-  } catch (error) {
+  } catch (_error) {
     // Intentionally ignore logout failures so the user can still be signed out locally.
   }
 
   state.currentUser = null;
+  state.auditEntries = [];
   updateUserCard();
   showLogin();
+  if (auditEntries) auditEntries.innerHTML = '';
+  setSessionStatus('Logged out');
 }
 
 async function checkSession() {
   try {
-    const response = await fetch('/api/session', { credentials: 'same-origin' });
+    const response = await fetch('/api/auth/session', { credentials: 'same-origin' });
     if (!response.ok) {
       state.currentUser = null;
       updateUserCard();
       showLogin();
+      setSessionStatus('Not authenticated');
       return;
     }
 
     const data = await response.json();
     state.currentUser = data.user;
+    state.currentUser.permissions = Array.isArray(data.user.permissions) ? data.user.permissions : [];
     updateUserCard();
     applyRoleAccess();
     showApp();
     await loadInstallations();
-  } catch (error) {
+    await loadAuditLog();
+  } catch (_error) {
     state.currentUser = null;
     updateUserCard();
     showLogin();
+    setSessionStatus('Session unavailable');
   }
+}
+
+async function fillProfile() {
+  if (!state.currentUser) return;
+
+  profileNameInput.value = state.currentUser.name || '';
+  profileCompanyInput.value = state.currentUser.company || 'Secure Alarm Vault';
+  profileDepartmentInput.value = state.currentUser.department || 'Operations';
+  profileTitleInput.value = state.currentUser.title || '';
+  profilePhoneInput.value = state.currentUser.phone || '';
 }
 
 searchInput.addEventListener('input', (event) => {
@@ -597,8 +787,21 @@ document.getElementById('alertButton').addEventListener('click', showUpcomingAle
 documentUploadInput.addEventListener('change', handleDocumentUpload);
 loginForm.addEventListener('submit', handleLogin);
 logoutButton.addEventListener('click', logout);
+forgotPasswordButton.addEventListener('click', handleForgotPasswordRequest);
+profileForm.addEventListener('submit', handleProfileUpdate);
+passwordResetForm.addEventListener('submit', handlePasswordChange);
 document.querySelectorAll('.toggle-mask').forEach((button) => {
   button.addEventListener('click', toggleMask);
+});
+
+document.querySelectorAll('.nav-item').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach((item) => item.classList.remove('active'));
+    button.classList.add('active');
+    if (button.dataset.view === 'profile') {
+      fillProfile();
+    }
+  });
 });
 
 updateUserCard();
